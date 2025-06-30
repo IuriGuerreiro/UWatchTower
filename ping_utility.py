@@ -57,7 +57,7 @@ def ping_ips(ip_addresses: List[str], timeout: int = 1, count: int = 4) -> Dict[
 # Example usage
 if __name__ == "__main__":
     # Example IPs
-    ips = ["192.168.21.21", "192.168.21.24", "192.168.21.25"]
+    ips = ["192.168.21.21", "192.168.21.24", "192.168.21.25","192.168.26.47"]
     result = ping_ips(ips)
     
     # Display results
