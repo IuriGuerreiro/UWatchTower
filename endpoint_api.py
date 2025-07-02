@@ -1,192 +1,115 @@
-import os
 import requests
-from dotenv import load_dotenv
 import json
+import datetime
+import os
+from dotenv import load_dotenv
 
-# Load .env credentials
+# Load .env file to get the PHP API URL and token
 load_dotenv()
-client_id = os.getenv("ACTION1_CLIENT_ID")
-client_secret = os.getenv("ACTION1_CLIENT_SECRET")
-org_id = os.getenv("ACTION1_ORG_ID")  # Make sure this is in your .env file
 
-print(f"🔍 Loaded credentials:")
-print(f"  Client ID: {'✅ Found' if client_id else '❌ Missing'}")
-print(f"  Client Secret: {'✅ Found' if client_secret else '❌ Missing'}")
-print(f"  Organization ID: {'✅ Found' if org_id else '❌ Missing'}")
+# Define the PHP API URL and token
+PHP_API_URL = os.getenv("PHP_API_URL", "http://127.0.0.1:8086/api/ping")
+API_TOKEN = os.getenv("API_TOKEN", "your_secret_token_here")
 
-if not org_id:
-    print("\n❌ ERROR: ACTION1_ORG_ID not found in .env file!")
-    print("Please add ACTION1_ORG_ID=your_org_id to your .env file")
-    exit(1)
-
-def make_api_request(url, headers, description="", params=None):
-    """Helper function to make API requests with detailed error handling"""
+def send_ping_results(ip, ping_result):
     print(f"\n{'='*60}")
-    print(f"🔍 Testing: {description}")
-    print(f"📡 URL: {url}")
-    if params:
-        print(f"📋 Parameters: {params}")
+    print(f"📡 Sending ping results for {ip} to PHP API")
+    
+    # Verificar URL da API
+    if not PHP_API_URL or PHP_API_URL == "http://yourserver.com/api/ping":
+        print("❌ ERROR: PHP_API_URL not configured in .env file!")
+        return {"success": False, "message": "API URL not configured"}
+    
+    # Verificar token
+    if not API_TOKEN or API_TOKEN == "your_secret_token_here":
+        print("❌ ERROR: API_TOKEN not configured in .env file!")
+        return {"success": False, "message": "API token not configured"}
+    
+    print(f"🌐 Target URL: {PHP_API_URL}")
+    print(f"🔑 Using API Token: {API_TOKEN[:10]}...{API_TOKEN[-4:] if len(API_TOKEN) > 14 else API_TOKEN}")
+    
+    # Calculate packet loss
+    packet_loss = "0%"
+    if ping_result['success'] and "packet loss" in ping_result['output'].lower():
+        output_lines = ping_result['output'].split('\n')
+        for line in output_lines:
+            if "packet loss" in line.lower():
+                parts = line.split('%')
+                if len(parts) > 1:
+                    for part in parts[0].split(' '):
+                        if part.strip() and part.strip().replace('.', '', 1).isdigit():
+                            packet_loss = f"{part}%"
+                            break
+    
+    current_datetime = datetime.datetime.now()
+    current_date = current_datetime.strftime("%Y-%m-%d")
+    
+    # Prepare data
+    data = {
+        'asset_id': 1,
+        'ping_status': 'up' if ping_result['success'] else 'down',
+        'ping_time': f"{ping_result['time']:.3f}" if ping_result['success'] else None,
+        'ping_date': current_date,
+        'ping_time_offset': current_datetime.strftime("%H:%M:%S"),
+        'ping_packet_loss': packet_loss,
+        'api_token': API_TOKEN  # Include token in the data
+    }
+    
+    # Debug output
+    print(f"📤 Data being sent:")
+    # Don't show the full token in debug output
+    debug_data = data.copy()
+    debug_data['api_token'] = f"{API_TOKEN[:4]}...{API_TOKEN[-4:]}" if len(API_TOKEN) > 8 else "***"
+    print(json.dumps(debug_data, indent=2))
+    
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': f'Bearer {API_TOKEN}',  # Token in header
+        'X-API-Token': API_TOKEN  # Alternative token header
+    }
     
     try:
-        response = requests.get(url, headers=headers, params=params)
+        print("🚀 Sending POST request...")
+        response = requests.post(PHP_API_URL, json=data, headers=headers, timeout=30)
         
-        print(f"📊 Status Code: {response.status_code}")
-        print(f"📊 Content Type: {response.headers.get('content-type', 'Not specified')}")
-        print(f"📊 Content Length: {len(response.text)}")
+        print(f"📊 Response Status: {response.status_code}")
+        print(f"📋 Response Headers: {dict(response.headers)}")
         
-        # Handle different response types
-        if response.status_code == 200:
+        # Log raw response
+        print(f"📝 Raw Response: {response.text[:500]}")
+        
+        if response.status_code in [200, 201]:
+            print("✅ SUCCESS: Ping data sent to API")
             try:
-                if response.text.strip():
-                    data = response.json()
-                    print("✅ SUCCESS - JSON Response:")
-                    
-                    # Pretty print with limited depth for large responses
-                    if isinstance(data, dict) and 'items' in data:
-                        print(f"📊 Total Items: {data.get('total_items', 'Unknown')}")
-                        print(f"📊 Returned Items: {len(data.get('items', []))}")
-                        print(f"📊 Limit: {data.get('limit', 'Unknown')}")
-                        
-                        # Show first few items
-                        items = data.get('items', [])
-                        if items:
-                            print("\n🖥️  First endpoint details:")
-                            first_item = items[0]
-                            for key, value in first_item.items():
-                                print(f"  {key}: {value}")
-                            
-                            if len(items) > 1:
-                                print(f"\n... and {len(items) - 1} more endpoints")
-                    else:
-                        print(json.dumps(data, indent=2))
-                    
-                    return data
-                else:
-                    print("⚠️  SUCCESS but empty response")
-                    return None
-            except requests.exceptions.JSONDecodeError:
-                print("✅ SUCCESS but non-JSON response:")
-                print(response.text[:500])
-                return response.text
-        
-        elif response.status_code == 403:
-            print("❌ FORBIDDEN - No permission to access this endpoint")
-            try:
-                error_data = response.json()
-                print("Error details:")
-                print(json.dumps(error_data, indent=2))
-            except:
-                print("Raw response:")
-                print(response.text[:300])
-            
+                response_data = response.json()
+                print(f"📨 Response Data: {json.dumps(response_data, indent=2)}")
+                return response_data
+            except json.JSONDecodeError:
+                print("⚠️ Response is not valid JSON")
+                return {"success": True, "message": "Data sent but response not JSON"}
         elif response.status_code == 401:
-            print("❌ UNAUTHORIZED - Token invalid or expired")
-            try:
-                error_data = response.json()
-                print("Error details:")
-                print(json.dumps(error_data, indent=2))
-            except:
-                print("Raw response:")
-                print(response.text[:300])
-            
-        elif response.status_code == 400:
-            print("❌ BAD REQUEST - Invalid parameters or request format")
-            try:
-                error_data = response.json()
-                print("Error details:")
-                print(json.dumps(error_data, indent=2))
-            except:
-                print("Raw response:")
-                print(response.text[:300])
-            
-        elif response.status_code == 404:
-            print("❌ NOT FOUND - Endpoint doesn't exist or org ID is wrong")
-            print("Raw response:")
-            print(response.text[:300])
-            
+            print("❌ AUTHENTICATION ERROR: Invalid or missing token")
+            return {"success": False, "message": "Authentication failed - check API token"}
+        elif response.status_code == 403:
+            print("❌ AUTHORIZATION ERROR: Token valid but access denied")
+            return {"success": False, "message": "Access denied - insufficient permissions"}
         else:
-            print(f"❌ ERROR {response.status_code}")
-            print("Raw response:")
-            print(response.text[:300])
-            
+            print(f"❌ HTTP ERROR: {response.status_code}")
+            try:
+                error_data = response.json()
+                print(f"❌ Error Response: {json.dumps(error_data, indent=2)}")
+                return error_data
+            except:
+                print(f"❌ Raw Error Response: {response.text}")
+                return {"success": False, "message": f"HTTP {response.status_code}: {response.text}"}
+                
+    except requests.exceptions.Timeout:
+        print("❌ TIMEOUT: Request took too long")
+        return {"success": False, "message": "Request timeout"}
+    except requests.exceptions.ConnectionError:
+        print("❌ CONNECTION ERROR: Cannot connect to API")
+        return {"success": False, "message": "Connection error"}
     except requests.exceptions.RequestException as e:
         print(f"❌ REQUEST ERROR: {e}")
-    
-    return None
-
-# Get access token
-print("\n🔐 Getting access token...")
-auth_url = "https://app.eu.action1.com/api/3.0/oauth2/token"
-headers = {"Content-Type": "application/x-www-form-urlencoded"}
-data = {
-    "client_id": client_id,
-    "client_secret": client_secret
-}
-
-try:
-    response = requests.post(auth_url, headers=headers, data=data)
-    response.raise_for_status()
-    auth_data = response.json()
-    access_token = auth_data["access_token"]
-    
-    print("✅ Access token retrieved successfully")
-    print(f"🔑 Token length: {len(access_token)}")
-    print(f"🔑 Token starts with: {access_token[:30]}...")
-except Exception as e:
-    print(f"❌ Failed to get access token: {e}")
-    exit(1)
-
-# Prepare authorization header
-auth_headers = {"Authorization": f"Bearer {access_token}"}
-
-# Test the correct endpoint from the documentation
-base_url = "https://app.eu.action1.com/api/3.0"
-
-print(f"\n{'='*80}")
-print("🚀 TESTING ACTION1 ENDPOINTS API")
-print(f"🏢 Organization ID: {org_id}")
-print(f"{'='*80}")
-
-# Basic endpoints call
-endpoints_url = f"{base_url}/endpoints/managed/{org_id}"
-result = make_api_request(endpoints_url, auth_headers, "Get all managed endpoints")
-
-if result:
-    print(f"\n{'='*60}")
-    print("🎯 TESTING WITH DIFFERENT PARAMETERS")
-    print(f"{'='*60}")
-    
-    # Test with limit parameter
-    params = {"limit": 5}
-    make_api_request(endpoints_url, auth_headers, "Get first 5 endpoints", params)
-else:
-    print(f"\n{'='*60}")
-    print("🔍 TROUBLESHOOTING SUGGESTIONS")
-    print(f"{'='*60}")
-    
-    print("\n💡 Possible issues:")
-    print("1. ❌ Organization ID might be incorrect")
-    print("2. ❌ Your user account lacks 'view_endpoints' permission")
-    print("3. ❌ API client doesn't have proper scopes configured")
-    print("4. ❌ Organization might have API restrictions")
-    
-    print(f"\n🔧 Things to check:")
-    print(f"• Verify your org ID in Action1 dashboard: {org_id}")
-    print("• Check user permissions include 'view_endpoints'")
-    print("• Verify API client configuration in Action1 settings")
-    print("• Contact Action1 support if permissions look correct")
-
-print(f"\n{'='*80}")
-print("📋 QUICK REFERENCE")
-print(f"{'='*80}")
-print("Available filters you can use:")
-print("• status: Connected, Disconnected, Pending Uninstall")
-print("• online_status: SUCCESS, WARNING, ERROR")
-print("• update_status: SUCCESS, WARNING, ERROR")
-print("• vulnerability_status: SUCCESS, WARNING, ERROR")
-print("• reboot_required: Yes, No") 
-print("• os: Windows 10, Windows 11, macOS, etc.")
-print("• limit: number (page size)")
-print("• from: number (pagination offset)")
-print("• filter: string (search term)")
-print("• fields: *, missing_updates, vulnerabilities")
+        return {"success": False, "message": str(e)}
