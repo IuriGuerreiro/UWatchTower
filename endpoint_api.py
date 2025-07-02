@@ -8,25 +8,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Define the PHP API URL and token
-PHP_API_URL = os.getenv("PHP_API_URL", "http://127.0.0.1:8086/api/ping")
-API_TOKEN = os.getenv("API_TOKEN", "your_secret_token_here")
+PHP_API_URL = os.getenv("PHP_API_URL")
 
 def send_ping_results(ip, ping_result):
     print(f"\n{'='*60}")
     print(f"📡 Sending ping results for {ip} to PHP API")
     
     # Verificar URL da API
-    if not PHP_API_URL or PHP_API_URL == "http://yourserver.com/api/ping":
+    if not PHP_API_URL:
         print("❌ ERROR: PHP_API_URL not configured in .env file!")
         return {"success": False, "message": "API URL not configured"}
-    
-    # Verificar token
-    if not API_TOKEN or API_TOKEN == "your_secret_token_here":
-        print("❌ ERROR: API_TOKEN not configured in .env file!")
-        return {"success": False, "message": "API token not configured"}
-    
-    print(f"🌐 Target URL: {PHP_API_URL}")
-    print(f"🔑 Using API Token: {API_TOKEN[:10]}...{API_TOKEN[-4:] if len(API_TOKEN) > 14 else API_TOKEN}")
     
     # Calculate packet loss
     packet_loss = "0%"
@@ -46,27 +37,38 @@ def send_ping_results(ip, ping_result):
     
     # Prepare data
     data = {
-        'asset_id': 1,
+        'asset_id': 911,
         'ping_status': 'up' if ping_result['success'] else 'down',
         'ping_time': f"{ping_result['time']:.3f}" if ping_result['success'] else None,
         'ping_date': current_date,
         'ping_time_offset': current_datetime.strftime("%H:%M:%S"),
         'ping_packet_loss': packet_loss,
-        'api_token': API_TOKEN  # Include token in the data
     }
     
     # Debug output
     print(f"📤 Data being sent:")
     # Don't show the full token in debug output
     debug_data = data.copy()
-    debug_data['api_token'] = f"{API_TOKEN[:4]}...{API_TOKEN[-4:]}" if len(API_TOKEN) > 8 else "***"
     print(json.dumps(debug_data, indent=2))
     
     headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': f'Bearer {API_TOKEN}',  # Token in header
-        'X-API-Token': API_TOKEN  # Alternative token header
+	"host": "127.0.0.1:8086",
+	"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0",
+	"accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+	"accept-language": "pt-PT,pt;q=0.8,en;q=0.5,en-US;q=0.3",
+	"accept-encoding": "gzip, deflate, br, zstd",
+	"dnt": "1",
+	"sec-gpc": "1",
+	"connection": "keep-alive",
+	"cookie": "********",
+	"upgrade-insecure-requests": "1",
+	"sec-fetch-dest": "document",
+	"sec-fetch-mode": "navigate",
+	"sec-fetch-site": "none",
+	"sec-fetch-user": "?1",
+	"priority": "u=0, i",
+	"pragma": "no-cache",
+	"cache-control": "no-cache"
     }
     
     try:
