@@ -37,6 +37,7 @@ def send_ping_results(ip, ping_result):
     
     # Prepare data
     data = {
+        'password': os.getenv("PASSWORD"),
         'asset_id': 911,
         'ping_status': 'up' if ping_result['success'] else 'down',
         'ping_time': f"{ping_result['time']:.3f}" if ping_result['success'] else None,
@@ -52,23 +53,8 @@ def send_ping_results(ip, ping_result):
     print(json.dumps(debug_data, indent=2))
     
     headers = {
-	"host": "127.0.0.1:8086",
-	"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0",
-	"accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-	"accept-language": "pt-PT,pt;q=0.8,en;q=0.5,en-US;q=0.3",
-	"accept-encoding": "gzip, deflate, br, zstd",
-	"dnt": "1",
-	"sec-gpc": "1",
-	"connection": "keep-alive",
-	"cookie": "********",
-	"upgrade-insecure-requests": "1",
-	"sec-fetch-dest": "document",
-	"sec-fetch-mode": "navigate",
-	"sec-fetch-site": "none",
-	"sec-fetch-user": "?1",
-	"priority": "u=0, i",
-	"pragma": "no-cache",
-	"cache-control": "no-cache"
+        'Content-Type': 'application/json',
+        
     }
     
     try:

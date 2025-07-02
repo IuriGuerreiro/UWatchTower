@@ -1,12 +1,11 @@
 import subprocess
 import platform
-import threading
 from typing import List, Dict, Any
 import time
 
 def ping_ips(ip_addresses: List[str], timeout: int = 1, count: int = 4) -> Dict[str, Any]:
     """
-    Pings a list of IP addresses and returns the results.
+    Pings a list of IP addresses sequentially and returns the results.
     
     Args:
         ip_addresses: List of IP addresses to ping
@@ -17,13 +16,12 @@ def ping_ips(ip_addresses: List[str], timeout: int = 1, count: int = 4) -> Dict[
         Dictionary with IP addresses as keys and ping results as values
     """
     results = {}
-    threads = []
     
-    def ping_ip(ip: str):
-        # Determine the ping command based on the OS
-        param = "-n" if platform.system().lower() == "windows" else "-c"
-        timeout_param = "-w" if platform.system().lower() == "windows" else "-W"
-        
+    # Determine the ping command based on the OS
+    param = "-n" if platform.system().lower() == "windows" else "-c"
+    timeout_param = "-w" if platform.system().lower() == "windows" else "-W"
+    
+    for ip in ip_addresses:
         command = ["ping", param, str(count), timeout_param, str(timeout), ip]
         
         start_time = time.time()
@@ -41,16 +39,9 @@ def ping_ips(ip_addresses: List[str], timeout: int = 1, count: int = 4) -> Dict[
             "output": output,
             "time": ping_time
         }
-    
-    # Create threads for parallel pinging
-    for ip in ip_addresses:
-        thread = threading.Thread(target=ping_ip, args=(ip,))
-        threads.append(thread)
-        thread.start()
-    
-    # Wait for all threads to complete
-    for thread in threads:
-        thread.join()
+        
+        # Print progress
+        print(f"Pinged {ip}: {'Success' if success else 'Failed'} (Time: {ping_time:.3f}s)")
     
     return results
 
